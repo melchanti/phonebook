@@ -1,0 +1,22 @@
+{
+  "name": "phonebook",
+  "version": "1.0.0",
+  "description": "Part of a fullstack course provided by the Univeristy of Helsinki. This project will start off building the backend of phonebook application then integerate the frontend to it",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/melchanti/phonebook.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/melchanti/phonebook/issues"
+  },
+  "homepage": "https://github.com/melchanti/phonebook#readme",
+  "dependencies": {
+    "express": "^4.18.1"
+  }
+}
