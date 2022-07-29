@@ -79,19 +79,10 @@ app.delete("/api/persons/:id", (request, response, next) => {
     .catch(error => next(error));
 });
 
-const generateId = () => {
-  let id = Math.floor(Math.random() * 10000);
-  while (persons.some(person => person.id === id)) {
-    id = Math.floor(Math.random() * 10000);
-  }
-  return id;
-};
 
 app.post("/api/persons", async (request, response, next) => {
-  const id = generateId();
-
   const person = request.body;
-  if (!person.name || !person.number) {
+  /*if (!person.name || !person.number) {
     next(new Error("missing"));
     return;
   } 
@@ -104,7 +95,7 @@ app.post("/api/persons", async (request, response, next) => {
   if (currentPeople.some(existingPerson => person.name === existingPerson.name)) {
     next(new Error("exists"));
     return;
-  }
+  }*/
   const newPerson = new Person({
     name: person.name,
     number: person.number,
@@ -112,6 +103,9 @@ app.post("/api/persons", async (request, response, next) => {
 
   newPerson.save().then(savedPerson => {
     response.json(savedPerson);
+  })
+  .catch(error => {
+    next(error);
   });
 
 });
@@ -130,17 +124,16 @@ app.put("/api/persons/:id", async(request, response, next) => {
       next(error);
     });
 });
+
 const errorHandler = (error, request, response, next) => {
-  if (error.message === "exists") {
-    return response.status(400).json({
-      error: `Person already exists`
-    });
-  } else if (error.message === "missing") {
-    return response.status(400).json({
-      error: `missing Name or Number`
-    });
-  } else if (error.name === 'CastError') {
+  if (error.name === 'CastError') {
     return response.status(400).send( { error: 'malformatted id' });
+  } else if (error.name === 'ValidationError') {
+    console.log(error.message);
+    return response.status(400).send( {error: error.message });
+  } else if (error.message.includes('E11000')) {
+    console.log(error.message);
+    return response.status(400).send( {error: error.message });
   }
 
   next(error);
