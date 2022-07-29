@@ -1,10 +1,13 @@
+require('dotenv').config();
 const { json } = require("express");
 const express = require("express");
 const morgan = require("morgan");
 const cors = require('cors');
+const Person = require("./models/person")
 
 const app = express();
 
+/*Not needed with the database
 let persons = [
   { 
     "id": 1,
@@ -26,7 +29,7 @@ let persons = [
     "name": "Mary Poppendieck", 
     "number": "39-23-6423122"
   }
-];
+];*/
 
 morgan.token("body", (req, res) => {
   if (req.method === 'POST') {
@@ -41,32 +44,39 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'));
 
-
-app.get("/", (request,response) => {
-  response.redirect("/api/persons");
-});
-
 app.get("/api/persons", (request, response) => {
-  response.json(persons);
+  Person.find({}).then(result => {
+    response.json(result);
+  });
 });
 
-app.get("/info", (request, response) => {
-  response.send(`Phonebook has info for ${persons.length} people<br><br>${new Date().toString()}`);
+app.get("/info", async (request, response) => {
+  let length;
+
+  await Person.find({}).then(result => {
+    length = result.length;
+  });
+  response.send(`Phonebook has info for ${length} people<br><br>${new Date().toString()}`);
 });
 
-app.get("/api/persons/:id", (request, response) => {
-  const id = Number(request.params.id);
-  const person = persons.find(person => person.id === id);
-  if (!person) {
-    response.status(404).end();
-  }
-  response.json(person);
+app.get("/api/persons/:id", (request, response, next) => {
+  Person.findById(request.params.id)
+    .then(person => {
+      if (person) {
+        response.json(person);
+      } else {
+        response.status(404).end();
+      }
+    })
+    .catch(error => next(error));
 });
 
-app.delete("/api/persons/:id", (request, response) => {
-  const id = Number(request.params.id);
-  persons = persons.filter(person => person.id !== id);
-  response.status(204).end(`Person with id ${id} has been deleted`);
+app.delete("/api/persons/:id", (request, response, next) => {
+  Person.findByIdAndRemove(request.params.id)
+    .then(result => {
+      response.status(204).end(`Person with id ${request.params.id} has been deleted`);
+    })
+    .catch(error => next(error));
 });
 
 const generateId = () => {
@@ -77,24 +87,66 @@ const generateId = () => {
   return id;
 };
 
-app.post("/api/persons", (request, response) => {
+app.post("/api/persons", async (request, response, next) => {
   const id = generateId();
 
   const person = request.body;
   if (!person.name || !person.number) {
-    return response.status(400).json({
-      error: 'Missing name or number'
+    next(new Error("missing"));
+    return;
+  } 
+  let currentPeople = [];
+
+  await Person.find({}).then(people => {
+    currentPeople = people;
+  });
+
+  if (currentPeople.some(existingPerson => person.name === existingPerson.name)) {
+    next(new Error("exists"));
+    return;
+  }
+  const newPerson = new Person({
+    name: person.name,
+    number: person.number,
+  });
+
+  newPerson.save().then(savedPerson => {
+    response.json(savedPerson);
+  });
+
+});
+
+app.put("/api/persons/:id", async(request, response, next) => {
+
+  const newPerson = {
+    name: request.body.name,
+    number: request.body.number,
+  }
+  Person.findByIdAndUpdate(request.params.id, newPerson, {new: true})
+    .then(updatedPerson => {
+      response.json(updatedPerson);
+    })
+    .catch(error => {
+      next(error);
     });
-  } else if (persons.some(existingPerson => person.name === existingPerson.name)) {
+});
+const errorHandler = (error, request, response, next) => {
+  if (error.message === "exists") {
     return response.status(400).json({
-      error: `${person.name} already exists`
+      error: `Person already exists`
     });
+  } else if (error.message === "missing") {
+    return response.status(400).json({
+      error: `missing Name or Number`
+    });
+  } else if (error.name === 'CastError') {
+    return response.status(400).send( { error: 'malformatted id' });
   }
 
-  person.id = id;
-  persons = persons.concat(person);
-  response.json(person);
-});
+  next(error);
+}
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
